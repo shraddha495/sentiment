@@ -1,131 +1,125 @@
 import streamlit as st
 import pickle
-import os
+import numpy as np
 
-# Set page configuration
+# Page Configuration
 st.set_page_config(
-    page_title="Sentiment Analysis App",
+    page_title="AI Sentiment Analysis Dashboard",
     page_icon="✨",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS styling for impressive layout and category effects
+# Custom CSS Styling & Visual Effects
 st.markdown("""
     <style>
     .main {
         background-color: #f8f9fa;
     }
-    .stTextArea textarea {
-        background-color: #ffffff;
-        color: #31333F;
+    .stTextInput > div > div > input {
         border-radius: 10px;
-        border: 1px solid #ced4da;
+        border: 2px solid #e0e0e0;
+        padding: 10px;
     }
     .sentiment-card {
         padding: 20px;
-        border-radius: 12px;
+        border-radius: 15px;
+        color: white;
         text-align: center;
-        color: white;
-        font-weight: bold;
         font-size: 24px;
-        margin-top: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .positive {
-        background: linear-gradient(135deg, #28a745, #218838);
-    }
-    .negative {
-        background: linear-gradient(135deg, #dc3545, #c82333);
-    }
-    .neutral {
-        background: linear-gradient(135deg, #ffc107, #e0a800);
-        color: #212529;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        height: 3em;
         font-weight: bold;
-        background-color: #007bff;
-        color: white;
-        border: none;
+        margin-top: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
-    .stButton>button:hover {
-        background-color: #0056b3;
+    .positive { background: linear-gradient(135deg, #28a745, #20c997); }
+    .negative { background: linear-gradient(135deg, #dc3545, #f86f70); }
+    .neutral { background: linear-gradient(135deg, #ffc107, #ff9800); color: #333 !important; }
+    
+    .stars {
+        font-size: 30px;
+        color: #ffD700;
+        text-align: center;
+        margin-top: 10px;
+        text-shadow: 0px 2px 4px rgba(0,0,0,0.2);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Load model and vectorizer with caching
+# Load Vectorizer and Model with Caching
 @st.cache_resource
 def load_models():
-    model = None
-    vectorizer = None
-    
-    if os.path.exists("sentiment.pkl") and os.path.exists("vector.pkl"):
-        try:
-            with open("sentiment.pkl", "rb") as f:
-                model = pickle.load(f)
-            with open("vector.pkl", "rb") as f:
-                vectorizer = pickle.load(f)
-        except Exception as e:
-            st.error(f"Error loading model files: {e}")
-            
-    return model, vectorizer
+    try:
+        with open('vector.pkl', 'rb') as f:
+            vectorizer = pickle.load(f)
+        with open('sentiment.pkl', 'rb') as f:
+            model = pickle.load(f)
+        return vectorizer, model
+    except Exception as e:
+        st.error(f"Error loading model files: {e}")
+        return None, None
 
-model, vectorizer = load_models()
+vectorizer, model = load_models()
 
 # App Header
-st.title("📊 Advanced Sentiment Analysis")
-st.markdown("Analyze the sentiment of your text instantly (Positive, Negative, or Neutral).")
+st.title("🌟 AI Sentiment Analysis Hub")
+st.markdown("Analyze customer reviews, feedback, or text instantly using your trained Naive Bayes machine learning model.")
 st.markdown("---")
 
-# Sidebar information
+# Sidebar Information
 with st.sidebar:
     st.header("About App")
-    st.info("This application uses a pre-trained Machine Learning model (`Naive Bayes`) combined with text vectorization to predict text sentiment accurately.")
+    st.info("This application evaluates text input and categorizes it into **Positive**, **Neutral**, or **Negative** sentiments with immersive design elements.")
     st.markdown("---")
-    st.markdown("**Instructions:**")
-    st.markdown("1. Type or paste your text in the box.")
-    st.markdown("2. Click **Analyze Sentiment**.")
-    st.markdown("3. View the categorized visual outcome.")
+    st.markdown("### Model Status")
+    if vectorizer and model:
+        st.success("Models Loaded Successfully! ✅")
+    else:
+        st.error("Model Files Missing or Corrupted ❌")
 
-# Main Interface
-user_input = st.text_area("Enter your text here:", placeholder="Type something like 'I love this product, it is amazing!'...", height=150)
+# Main Input Section
+st.subheader("✍️ Enter text for analysis:")
+user_input = st.text_area("", placeholder="Type your review or sentence here...", height=120)
 
-if st.button("Analyze Sentiment"):
+if st.button("🚀 Analyze Sentiment", use_container_width=True):
     if not user_input.strip():
         st.warning("⚠️ Please enter some text before analyzing.")
-    elif model is None or vectorizer is None:
-        st.error("❌ Model or vectorizer files (`sentiment.pkl` / `vector.pkl`) could not be found or loaded correctly. Please check your directory.")
+    elif vectorizer is None or model is None:
+        st.error("⚠️ Models are not loaded properly. Check your .pkl files.")
     else:
         try:
-            # Transform input and predict
+            # Transform and Predict
             transformed_input = vectorizer.transform([user_input])
-            prediction = model.predict(transformed_input)[0]
+            prediction = model.predict(transformed_input)
             
-            # Normalize prediction text for clean matching
-            pred_lower = str(prediction).lower().strip()
+            # Normalize prediction string
+            sentiment = str(prediction[0]).strip().lower()
             
-            st.markdown("### Result Analysis:")
-            
-            # Display categorical styled card based on output
-            if "pos" in pred_lower:
-                st.markdown(
-                    '<div class="sentiment-card positive">😊 Positive Sentiment Detected</div>', 
-                    unsafe_allow_html=True
-                )
-            elif "neg" in pred_lower:
-                st.markdown(
-                    '<div class="sentiment-card negative">😞 Negative Sentiment Detected</div>', 
-                    unsafe_allow_html=True
-                )
+            # Display Result based on Sentiment Category
+            if "pos" in sentiment:
+                st.markdown("""
+                    <div class="sentiment-card positive">
+                        😊 Positive Sentiment Detected!
+                    </div>
+                    <div class="stars">⭐⭐⭐⭐⭐</div>
+                """, unsafe_allow_html=True)
+            elif "neg" in sentiment:
+                st.markdown("""
+                    <div class="sentiment-card negative">
+                        😞 Negative Sentiment Detected!
+                    </div>
+                    <div class="stars">⭐☆☆☆☆</div>
+                """, unsafe_allow_html=True)
             else:
-                st.markdown(
-                    '<div class="sentiment-card neutral">😐 Neutral Sentiment Detected</div>', 
-                    unsafe_allow_html=True
-                )
+                st.markdown("""
+                    <div class="sentiment-card neutral">
+                        😐 Neutral Sentiment Detected!
+                    </div>
+                    <div class="stars">⭐⭐⭐☆☆</div>
+                """, unsafe_allow_html=True)
                 
         except Exception as e:
             st.error(f"An error occurred during prediction: {e}")
+
+# Footer
+st.markdown("---")
+st.markdown("<p style='text-align: center; color: gray;'>Powered by Streamlit & Scikit-Learn</p>", unsafe_allow_html=True)
