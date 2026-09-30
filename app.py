@@ -1,154 +1,131 @@
-from flask import Flask, render_template_string, request
+import streamlit as st
 import pickle
+import os
 
-app = Flask(__name__)
+# Set page configuration
+st.set_page_config(
+    page_title="Sentiment Analysis App",
+    page_icon="✨",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
 
-# Load the vectorizer and sentiment model
-# Ensure 'vector.pkl' and 'sentiment.pkl' are in the same directory
-with open('vector.pkl', 'rb') as f:
-    vectorizer = pickle.load(f)
-
-with open('sentiment.pkl', 'rb') as f:
-    model = pickle.load(f)
-
-HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Sentiment Analysis Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+# Custom CSS styling for impressive layout and category effects
+st.markdown("""
     <style>
-        :root {
-            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --card-bg: rgba(255, 255, 255, 0.95);
-            --text-color: #333333;
-        }
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', sans-serif;
-        }
-        body {
-            background: var(--bg-gradient);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: var(--text-color);
-            padding: 20px;
-        }
-        .container {
-            background: var(--card-bg);
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-            width: 100%;
-            max-width: 600px;
-            backdrop-filter: blur(10px);
-            animation: fadeIn 0.8s ease-in-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        h2 {
-            text-align: center;
-            color: #4a3f8a;
-            margin-bottom: 25px;
-            font-weight: 700;
-            font-size: 2rem;
-        }
-        textarea {
-            width: 100%;
-            height: 130px;
-            padding: 15px;
-            border: 2px solid #ddd;
-            border-radius: 12px;
-            font-size: 1rem;
-            resize: none;
-            transition: all 0.3s ease;
-            outline: none;
-        }
-        textarea:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
-        }
-        button {
-            width: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 14px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            border-radius: 12px;
-            cursor: pointer;
-            margin-top: 20px;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-        .result-box {
-            margin-top: 25px;
-            padding: 20px;
-            border-radius: 12px;
-            text-align: center;
-            font-size: 1.2rem;
-            font-weight: 600;
-            animation: popUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        @keyframes popUp {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        .positive {
-            background-color: #d4edda;
-            color: #155724;
-            border: 2px solid #c3e6cb;
-        }
-        .negative {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 2px solid #f5c6cb;
-        }
-        .neutral {
-            background-color: #fff3cd;
-            color: #856404;
-            border: 2px solid #ffeeba;
-        }
+    .main {
+        background-color: #f8f9fa;
+    }
+    .stTextArea textarea {
+        background-color: #ffffff;
+        color: #31333F;
+        border-radius: 10px;
+        border: 1px solid #ced4da;
+    }
+    .sentiment-card {
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        color: white;
+        font-weight: bold;
+        font-size: 24px;
+        margin-top: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .positive {
+        background: linear-gradient(135deg, #28a745, #218838);
+    }
+    .negative {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+    }
+    .neutral {
+        background: linear-gradient(135deg, #ffc107, #e0a800);
+        color: #212529;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        height: 3em;
+        font-weight: bold;
+        background-color: #007bff;
+        color: white;
+        border: none;
+    }
+    .stButton>button:hover {
+        background-color: #0056b3;
+    }
     </style>
-</head>
-<body>
-    <div class="container">
-        <h2>Sentiment Analyzer</h2>
-        <form method="POST">
-            <textarea name="text" placeholder="Type your text here to analyze sentiment..." required>{{ text if text else '' }}</textarea>
-            <button type="submit">Analyze Sentiment</button>
-        </form>
-        {% if prediction %}
-            <div class="result-box {{ prediction.lower() }}">
-                Predicted Sentiment: <span>{{ prediction }}</span>
-            </div>
-        {% endif %}
-    </div>
-</body>
-</html>
-"""
+""", unsafe_allow_html=True)
 
-@app.route('/', methods=['GET', 'POST'])
-def home():
-    prediction = None
-    text = ""
-    if request.method == 'POST':
-        text = request.form['text']
-        transformed_text = vectorizer.transform([text])
-        prediction = model.predict(transformed_text)[0]
-    return render_template_string(HTML_TEMPLATE, prediction=prediction, text=text)
+# Load model and vectorizer with caching
+@st.cache_resource
+def load_models():
+    model = None
+    vectorizer = None
+    
+    if os.path.exists("sentiment.pkl") and os.path.exists("vector.pkl"):
+        try:
+            with open("sentiment.pkl", "rb") as f:
+                model = pickle.load(f)
+            with open("vector.pkl", "rb") as f:
+                vectorizer = pickle.load(f)
+        except Exception as e:
+            st.error(f"Error loading model files: {e}")
+            
+    return model, vectorizer
 
-if __name__ == '__main__':
-    app.run(debug=True)
+model, vectorizer = load_models()
+
+# App Header
+st.title("📊 Advanced Sentiment Analysis")
+st.markdown("Analyze the sentiment of your text instantly (Positive, Negative, or Neutral).")
+st.markdown("---")
+
+# Sidebar information
+with st.sidebar:
+    st.header("About App")
+    st.info("This application uses a pre-trained Machine Learning model (`Naive Bayes`) combined with text vectorization to predict text sentiment accurately.")
+    st.markdown("---")
+    st.markdown("**Instructions:**")
+    st.markdown("1. Type or paste your text in the box.")
+    st.markdown("2. Click **Analyze Sentiment**.")
+    st.markdown("3. View the categorized visual outcome.")
+
+# Main Interface
+user_input = st.text_area("Enter your text here:", placeholder="Type something like 'I love this product, it is amazing!'...", height=150)
+
+if st.button("Analyze Sentiment"):
+    if not user_input.strip():
+        st.warning("⚠️ Please enter some text before analyzing.")
+    elif model is None or vectorizer is None:
+        st.error("❌ Model or vectorizer files (`sentiment.pkl` / `vector.pkl`) could not be found or loaded correctly. Please check your directory.")
+    else:
+        try:
+            # Transform input and predict
+            transformed_input = vectorizer.transform([user_input])
+            prediction = model.predict(transformed_input)[0]
+            
+            # Normalize prediction text for clean matching
+            pred_lower = str(prediction).lower().strip()
+            
+            st.markdown("### Result Analysis:")
+            
+            # Display categorical styled card based on output
+            if "pos" in pred_lower:
+                st.markdown(
+                    '<div class="sentiment-card positive">😊 Positive Sentiment Detected</div>', 
+                    unsafe_allow_html=True
+                )
+            elif "neg" in pred_lower:
+                st.markdown(
+                    '<div class="sentiment-card negative">😞 Negative Sentiment Detected</div>', 
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    '<div class="sentiment-card neutral">😐 Neutral Sentiment Detected</div>', 
+                    unsafe_allow_html=True
+                )
+                
+        except Exception as e:
+            st.error(f"An error occurred during prediction: {e}")
