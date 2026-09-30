@@ -1,190 +1,215 @@
 import os
-import joblib
 from flask import Flask, render_template_string, request
+from textblob import TextBlob
 
 app = Flask(__name__)
 
-# Load model and vectorizer from the current directory
-MODEL_PATH = "sentiment.pkl"
-VECTORIZER_PATH = "vector.pkl"
-
-try:
-    model = joblib.load(MODEL_PATH)
-    vectorizer = joblib.load(VECTORIZER_PATH)
-    print("Model and Vectorizer loaded successfully!")
-except Exception as e:
-    print(f"Error loading model or vectorizer: {e}")
-    model = None
-    vectorizer = None
-
+# Modern HTML template with glowing star visual effects
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentiment Analyzer</title>
+    <title>Star Sentiment Analyzer</title>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-            color: #1f2937;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: #f8fafc;
             margin: 0;
-            padding: 0;
+            padding: 20px;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-        }
-        .container {
-            background: #ffffff;
-            padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-            width: 100%;
-            max-width: 600px;
             box-sizing: border-box;
         }
-        h2 {
-            margin-top: 0;
-            color: #4f46e5;
+
+        .container {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 550px;
+            box-sizing: border-box;
             text-align: center;
-            font-size: 26px;
         }
+
+        h2 {
+            color: #818cf8;
+            font-size: 28px;
+            font-weight: 800;
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
         .subtitle {
-            text-align: center;
-            color: #6b7280;
+            color: #94a3b8;
             font-size: 14px;
             margin-bottom: 25px;
         }
+
         textarea {
             width: 100%;
-            padding: 14px;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
+            padding: 15px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
             font-size: 15px;
             resize: vertical;
             min-height: 120px;
             box-sizing: border-box;
             font-family: inherit;
-        }
-        textarea:focus {
             outline: none;
-            border-color: #4f46e5;
+            transition: border-color 0.2s;
         }
+
+        textarea:focus {
+            border-color: #818cf8;
+            box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.15);
+        }
+
         button {
-            background-color: #4f46e5;
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
             color: white;
             border: none;
             padding: 14px 20px;
             font-size: 16px;
             font-weight: 600;
-            border-radius: 10px;
+            border-radius: 12px;
             cursor: pointer;
             width: 100%;
-            margin-top: 15px;
+            margin-top: 20px;
+            transition: transform 0.1s, opacity 0.2s;
         }
+
         button:hover {
-            background-color: #4338ca;
+            opacity: 0.95;
         }
-        .result-card {
-            margin-top: 25px;
-            padding: 20px;
-            border-radius: 12px;
-            text-align: center;
+
+        button:active {
+            transform: scale(0.98);
         }
-        .result-card.positive {
-            background-color: #ecfdf5;
-            color: #065f46;
-            border: 1px solid #34d399;
+
+        .result-box {
+            margin-top: 30px;
+            padding: 25px;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .result-card.negative {
-            background-color: #fef2f2;
-            color: #991b1b;
-            border: 1px solid #f87171;
-        }
+
         .result-title {
             font-size: 12px;
+            color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: 1.2px;
-            margin-bottom: 6px;
             font-weight: 700;
         }
-        .result-value {
-            font-size: 26px;
+
+        .stars {
+            font-size: 34px;
+            letter-spacing: 6px;
+            margin: 15px 0;
+            text-shadow: 0 0 20px rgba(250, 204, 21, 0.6);
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .sentiment-label {
+            font-size: 22px;
             font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .positive-text { color: #4ade80; }
+        .negative-text { color: #f87171; }
+        .neutral-text { color: #fbbf24; }
+
+        .score-info {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
         }
     </style>
 </head>
 <body>
+
     <div class="container">
-        <h2>Sentiment Analyzer</h2>
-        <div class="subtitle">AI-powered text sentiment evaluation</div>
+        <h2>✨ Star Sentiment Analyzer</h2>
+        <div class="subtitle">Accurate AI text emotion analysis with glowing star effects</div>
         
         <form method="POST">
-            <textarea name="text" placeholder="Type text here..." required>{{ user_text if user_text else '' }}</textarea>
-            <button type="submit">Predict Sentiment</button>
+            <textarea name="text" placeholder="Type or paste your text here (e.g., I like ice cream)..." required>{{ user_text if user_text else '' }}</textarea>
+            <button type="submit">Analyze Sentiment</button>
         </form>
 
-        {% if prediction %}
-            <div class="result-card {{ card_type }}">
-                <div class="result-title">Predicted Category</div>
-                <div class="result-value">{{ prediction }}</div>
+        {% if sentiment %}
+            <div class="result-box">
+                <div class="result-title">Rating Result</div>
+                <div class="stars">{{ stars }}</div>
+                <div class="sentiment-label {{ css_class }}">{{ sentiment }}</div>
+                <div class="score-info">Polarity Score: {{ score }}</div>
             </div>
         {% endif %}
     </div>
+
 </body>
 </html>
 """
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    prediction = None
-    card_type = "positive"
+    sentiment = None
+    stars = ""
+    css_class = ""
+    score = 0.0
     user_text = ""
-    
+
     if request.method == "POST":
         user_text = request.form.get("text", "").strip()
-        text_lower = user_text.lower()
-        
-        if not user_text:
-            prediction = "Please enter text."
-            card_type = "negative"
-        else:
-            # --- SMART OVERRIDE FOR COMMON TESTING PHRASES ---
-            # This fixes your exact issue with phrases like "I like ice cream" 
-            # if your model file has a corrupted vocabulary or inverted training labels.
-            forced_positive_words = ["i like", "love", "great", "awesome", "good", "happy", "wonderful", "ice cream", "best"]
-            forced_negative_words = ["hate", "awful", "terrible", "worst", "bad", "horrible", "sad"]
+        if user_text:
+            # Analyze using TextBlob (No pickle files required)
+            blob = TextBlob(user_text)
+            score = round(blob.sentiment.polarity, 2)  # Score between -1.0 and 1.0
             
-            if any(word in text_lower for word in forced_positive_words) and not any(neg in text_lower for neg in forced_negative_words):
-                prediction = "Positive"
-                card_type = "positive"
-            elif any(word in text_lower for word in forced_negative_words):
-                prediction = "Negative"
-                card_type = "negative"
-            elif model and vectorizer:
-                try:
-                    # Fallback to your actual machine learning model
-                    transformed_text = vectorizer.transform([user_text])
-                    pred = model.predict(transformed_text)[0]
-                    
-                    # Clean up prediction formatting
-                    pred_str = str(pred).lower()
-                    if pred_str in ["positive", "pos", "1", "true"]:
-                        prediction = "Positive"
-                        card_type = "positive"
-                    else:
-                        prediction = "Negative"
-                        card_type = "negative"
-                except Exception as e:
-                    prediction = "Positive"  # Safe default fallback
-                    card_type = "positive"
+            if score > 0.05:
+                sentiment = "Positive"
+                css_class = "positive-text"
+                stars = "⭐⭐⭐⭐⭐" if score > 0.4 else "⭐⭐⭐⭐☆"
+            elif score < -0.05:
+                sentiment = "Negative"
+                css_class = "negative-text"
+                stars = "⭐☆☆☆☆" if score < -0.4 else "⭐⭐☆☆☆"
             else:
-                prediction = "Positive"
-                card_type = "positive"
+                sentiment = "Neutral"
+                css_class = "neutral-text"
+                stars = "⭐⭐⭐☆☆"
 
-    return render_template_string(HTML_TEMPLATE, prediction=prediction, card_type=card_type, user_text=user_text)
+    return render_template_string(
+        HTML_TEMPLATE, 
+        sentiment=sentiment, 
+        stars=stars, 
+        css_class=css_class, 
+        score=score, 
+        user_text=user_text
+    )
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
