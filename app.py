@@ -8,6 +8,13 @@ app = Flask(__name__)
 MODEL_PATH = "sentiment.pkl"
 VECTORIZER_PATH = "vector.pkl"
 
+# ==========================================
+# LABEL FLIP TOGGLE:
+# Set this to True if your model's outputs 
+# are inverted (e.g. positive reads as negative)
+# ==========================================
+FLIP_LABELS = False 
+
 try:
     model = joblib.load(MODEL_PATH)
     vectorizer = joblib.load(VECTORIZER_PATH)
@@ -17,7 +24,6 @@ except Exception as e:
     model = None
     vectorizer = None
 
-# Advanced HTML/CSS template with probability meters and polished card styling
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -55,7 +61,6 @@ HTML_TEMPLATE = """
             width: 100%;
             max-width: 620px;
             box-sizing: border-box;
-            transition: all 0.3s ease;
         }
 
         h2 {
@@ -64,7 +69,6 @@ HTML_TEMPLATE = """
             text-align: center;
             font-size: 28px;
             font-weight: 800;
-            letter-spacing: -0.5px;
             margin-bottom: 6px;
         }
 
@@ -96,7 +100,6 @@ HTML_TEMPLATE = """
             resize: vertical;
             min-height: 130px;
             box-sizing: border-box;
-            transition: all 0.2s ease;
             font-family: inherit;
         }
 
@@ -116,23 +119,18 @@ HTML_TEMPLATE = """
             border-radius: 12px;
             cursor: pointer;
             width: 100%;
-            transition: background-color 0.2s, transform 0.1s;
+            transition: background-color 0.2s;
         }
 
         button:hover {
             background-color: var(--primary-hover);
         }
 
-        button:active {
-            transform: scale(0.98);
-        }
-
-        /* Result Card Layout Styles */
         .result-card {
             margin-top: 30px;
             padding: 24px;
             border-radius: 14px;
-            animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: fadeIn 0.4s ease;
         }
 
         .result-card.positive {
@@ -153,19 +151,13 @@ HTML_TEMPLATE = """
             color: #92400e;
         }
 
-        .result-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
         .result-title {
             font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 1px;
             font-weight: 700;
             opacity: 0.8;
+            margin-bottom: 6px;
         }
 
         .result-value {
@@ -177,7 +169,6 @@ HTML_TEMPLATE = """
         .confidence-wrapper {
             margin-top: 12px;
             font-size: 13px;
-            font-weight: 500;
         }
 
         .progress-bar-container {
@@ -192,16 +183,10 @@ HTML_TEMPLATE = """
         .progress-bar {
             height: 100%;
             border-radius: 6px;
-            transition: width 0.6s ease-in-out;
         }
 
-        .positive .progress-bar {
-            background-color: #22c55e;
-        }
-
-        .negative .progress-bar {
-            background-color: #ef4444;
-        }
+        .positive .progress-bar { background-color: #22c55e; }
+        .negative .progress-bar { background-color: #ef4444; }
 
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
@@ -225,12 +210,8 @@ HTML_TEMPLATE = """
 
         {% if prediction %}
             <div class="result-card {{ card_type }}">
-                <div class="result-header">
-                    <div>
-                        <div class="result-title">Result Analysis</div>
-                        <div class="result-value">{{ prediction }}</div>
-                    </div>
-                </div>
+                <div class="result-title">Result Analysis</div>
+                <div class="result-value">{{ prediction }}</div>
                 
                 {% if confidence is not none %}
                 <div class="confidence-wrapper">
@@ -269,19 +250,26 @@ def index():
                 # Transform text and execute prediction
                 transformed_text = vectorizer.transform([user_text])
                 pred = model.predict(transformed_text)[0]
-                prediction = str(pred)
                 
-                # Check if model supports probability outputs (.predict_proba)
+                # Normalize prediction to text format
+                pred_str = str(pred).lower()
+                is_positive = pred_str in ["positive", "pos", "1", "true", "happy"]
+                
+                # If your model labels are backwards, flip them via code config
+                if FLIP_LABELS:
+                    is_positive = not is_positive
+
+                if is_positive:
+                    prediction = "Positive"
+                    card_type = "positive"
+                else:
+                    prediction = "Negative"
+                    card_type = "negative"
+                
+                # Extract confidence probability if supported by model
                 if hasattr(model, "predict_proba"):
                     probs = model.predict_proba(transformed_text)[0]
                     confidence = float(max(probs))
-                
-                # Determine styling context
-                lower_pred = prediction.lower()
-                if lower_pred in ["negative", "neg", "0", "bad", "false"]:
-                    card_type = "negative"
-                else:
-                    card_type = "positive"
                     
             except Exception as e:
                 prediction = f"Processing Error: {str(e)}"
